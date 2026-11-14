@@ -11,6 +11,7 @@ r1-server holds one such key per run (r1_matchKey) and hands it to a player's ba
 A server that predates the request does not answer.
 """
 import socket
+import time
 
 OOB = b'\xff\xff\xff\xff'
 
@@ -43,14 +44,19 @@ def parse_reply(data):
 def fetch_match_key(ip, port, password='', *, timeout=1.0, tries=3):
     """-> (key, security id), or None when the server does not answer. Raises MatchKeyRefused."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.settimeout(timeout)
+        peer = (socket.gethostbyname(ip), port)
         request = build_request(password)
         for _ in range(tries):
-            sock.sendto(request, (ip, port))
+            deadline = time.monotonic() + timeout
+            sock.sendto(request, peer)
             try:
                 while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    sock.settimeout(remaining)
                     data, source = sock.recvfrom(2048)
-                    if source[1] != port:
+                    if source != peer:
                         continue
                     try:
                         return parse_reply(data)

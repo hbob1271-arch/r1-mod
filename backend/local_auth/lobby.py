@@ -115,8 +115,8 @@ def verify_client_auth(initial, header, packet, lookup, *, now=None, log=None):
     reply = struct.pack('<I', 10) + b'\xab\x83' + challenges[8:]
     keys = Keys(data[:20], data[20:40], data[40:56], data[56:72])
     if log is not None:
-        log('lobby_keys_derived', c2s_mac=keys.c2s_mac.hex(), s2c_mac=keys.s2c_mac.hex(),
-            c2s_aes=keys.c2s_aes.hex(), s2c_aes=keys.s2c_aes.hex())
+        # Events reach both persistent JSONL logs and stdout. Keep session material private.
+        log('lobby_keys_derived')
     return reply, keys, session['profile']
 
 
@@ -203,8 +203,7 @@ class LobbyHandler(socketserver.BaseRequestHandler):
                     raise ValueError('Unsupported client application envelope')
                 service, task, args = parse_task(application)
                 event('lobby_service_received', player=player.name, service=service, task=task,
-                      application_bytes=len(application), args_bytes=len(args),
-                      args_hex=args.hex())
+                      application_bytes=len(application), args_bytes=len(args))
                 transaction_id += 1
                 from .frames import build_register_codoid_result, w_str
                 results = ()
@@ -234,7 +233,7 @@ class LobbyHandler(socketserver.BaseRequestHandler):
                 reply_type, reply_body = build_task_reply(task, transaction_id=transaction_id, results=results)
                 event('lobby_reply_built', player=player.name, service=service, task=task,
                       transaction_id=transaction_id, reply_type=reply_type,
-                      reply_hex=reply_body.hex())
+                      reply_bytes=len(reply_body))
                 response = encode_server_data(reply_type, reply_body, keys, send_counter=send_counter)
                 send_counter += 1
                 self.request.sendall(response)
@@ -273,8 +272,7 @@ class LobbyHandler(socketserver.BaseRequestHandler):
         frame = encode_server_data(inner_type, application, keys, send_counter=send_counter)
         self.request.sendall(frame)
         event('room_startgame_pushed', player=player.name, host=f'{ip}:{port}',
-              session_id=session_id.hex(), security_key=security_key.hex(),
-              record_hex=record.hex(), frame_bytes=len(frame))
+              record_bytes=len(record), frame_bytes=len(frame))
         return send_counter + 1
 
 
