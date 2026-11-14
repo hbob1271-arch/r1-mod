@@ -75,6 +75,40 @@ class MatchKeyProtocol(unittest.TestCase):
         finally:
             server.join(5); server.close()
 
+    def test_wrong_ip_same_port_cannot_supply_match_key(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as target:
+            target.bind(('127.0.0.1', 0))
+            target.settimeout(2)
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as other:
+                other.bind(('127.0.0.2', target.getsockname()[1]))
+                failures = []
+                def respond():
+                    try:
+                        _, source = target.recvfrom(2048)
+                        other.sendto(REPLY, source)
+                    except OSError as error:
+                        failures.append(error)
+                worker = threading.Thread(target=respond)
+                worker.start()
+                try:
+                    self.assertIsNone(fetch_match_key('127.0.0.1', target.getsockname()[1],
+                                                      timeout=0.1, tries=1))
+                finally:
+                    worker.join(3)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(failures, [])
+
+    def test_invalid_packets_do_not_extend_attempt_deadline(self):
+        sock = mock.MagicMock()
+        sock.__enter__.return_value = sock
+        sock.recvfrom.return_value = (b'garbage', ('127.0.0.1', 28960))
+        with mock.patch('local_auth.matchkey.socket.socket', return_value=sock), \
+             mock.patch('local_auth.matchkey.socket.gethostbyname', return_value='127.0.0.1'), \
+             mock.patch('local_auth.matchkey.time.monotonic', side_effect=[0, 0.2, 0.9, 1.1]):
+            self.assertIsNone(fetch_match_key('localhost', 28960, timeout=1, tries=1))
+        self.assertEqual(sock.recvfrom.call_count, 2)
+        self.assertEqual(sock.sendto.call_args.args[1], ('127.0.0.1', 28960))
+
 
 class MatchSession(unittest.TestCase):
     def setUp(self):

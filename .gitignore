@@ -57,3 +57,10 @@ iw4_quick_xanims.bin
 !/docs/ROADMAP.md
 !/docs/NETCODE_AUDIT.md
 !/docs/COMPATIBILITY.md
+
+# Local restoration reports, game-derived manifests and rollback archives
+/restoration-evidence/
+
+# Full local restoration tracker/state may contain game-derived inventory data
+/CODOL_V461_MASTER_RESTORATION_TRACKER.md
+/CODOL_V461_MASTER_RESTORATION_STATE.json
